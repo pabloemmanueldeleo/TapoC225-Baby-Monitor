@@ -1,0 +1,56 @@
+# Entornos de desarrollo y secretos
+.env
+*.env.local
+config.json
+data/
+snapshots/
+captures/
+
+# Modelos pesados descargados dinámicamente por Ultralytics YOLO
+*.pt
+yolov8n-seg.pt
+yolov8n.pt
+*.onnx
+yolov8n-seg.onnx
+
+# Archivos de caché y compilados de Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+.uv/
+
+# Carpetas de datos personales del usuario (fotos guardadas del bebé)
+templates/*.jpg
+templates/*.png
+templates/*.jpeg
+templates/templates_cache.pkl
+!templates/.gitkeep
+
+templates_negatives/*.jpg
+templates_negatives/*.png
+templates_negatives/*.jpeg
+templates_negatives/negatives_cache.pkl
+!templates_negatives/.gitkeep
+
+# Suites de pruebas (ignorar solo resultados y capturas temporales)
+tests/results/
+tests/proxy_scenes/
+tests/__pycache__/
+scripts/build_templates_cache.py
+
+# Compilaciones y ejecutables
+dist/
+build/
+*.spec
+*.exe
+*.zip
+
+# IDEs y sistemas operativos
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
