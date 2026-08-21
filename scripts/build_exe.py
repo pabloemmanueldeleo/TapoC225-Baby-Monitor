@@ -18,7 +18,9 @@ def build_standalone_exe():
         subprocess.run(["uv", "pip", "install", "pyinstaller"], check=True)
     
     cmd = [
-        "pyinstaller",
+        sys.executable,
+        "-m",
+        "PyInstaller",
         "--name=TapoC225_BabyMonitor",
         "--noconsole",
         "--onedir",
@@ -27,8 +29,15 @@ def build_standalone_exe():
         "--add-data=.env.example;.",
         "--add-data=assets;assets",
         "--add-data=yolov8n-seg.onnx;.",
+        "--collect-all=cv2",
         "--collect-all=ultralytics",
         "--collect-all=onnxruntime",
+        "--collect-all=pytapo",
+        "--collect-all=sounddevice",
+        "--collect-all=av",
+        "--collect-all=matplotlib",
+        "--collect-all=pystray",
+        "--collect-all=PIL",
         "--collect-submodules=PySide6.QtWidgets",
         "--collect-submodules=PySide6.QtGui",
         "--collect-submodules=PySide6.QtCore",
