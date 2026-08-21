@@ -87,8 +87,9 @@
 ```bash
 git clone https://github.com/pabloemmanueldeleo/TapoC225-Baby-Monitor.git
 cd TapoC225-Baby-Monitor
-uv sync              # or: pip install -r requirements.txt
-uv run main.py       # or: double-click Iniciar_Monitor_Silencioso.vbs
+uv sync --all-extras                            # Install dependencies
+uv run main.py                                  # Launch application
+uv run python -m unittest discover -s tests     # Run 26 automated unit/GUI tests
 ```
 
 ---
@@ -136,8 +137,9 @@ uv run main.py       # or: double-click Iniciar_Monitor_Silencioso.vbs
 ```bash
 git clone https://github.com/pabloemmanueldeleo/TapoC225-Baby-Monitor.git
 cd TapoC225-Baby-Monitor
-uv sync              # o: pip install -r requirements.txt
-uv run main.py       # o: doble clic en Iniciar_Monitor_Silencioso.vbs
+uv sync --all-extras                            # Instalar dependencias
+uv run main.py                                  # Iniciar la aplicación
+uv run python -m unittest discover -s tests     # Ejecutar los 26 tests automatizados
 ```
 
 ---
