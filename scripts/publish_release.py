@@ -158,8 +158,52 @@ def upload_to_github_release(tag_name: str, zip_path: str, token: str) -> bool:
         print(f"[ERROR] Error al subir el binario: {upload_res.status_code} - {upload_res.text}")
         return False
 
+def get_github_token() -> str:
+    # 1. Variable de entorno
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        return token
+    # 2. Archivo .env
+    if os.path.exists(".env"):
+        with open(".env", "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("GITHUB_TOKEN="):
+                    token = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    if token:
+                        return token
+    # 3. Windows / System Git Credential Manager
+    try:
+        res = subprocess.run(
+            ["git", "credential", "fill"],
+            input="protocol=https\nhost=github.com\n\n",
+            text=True,
+            capture_output=True,
+            timeout=5
+        )
+        if res.returncode == 0:
+            creds = dict(l.split("=", 1) for l in res.stdout.splitlines() if "=" in l)
+            pwd = creds.get("password", "")
+            if pwd:
+                return pwd
+    except Exception:
+        pass
+    return ""
+
+def get_project_version() -> str:
+    try:
+        import tomllib
+        with open("pyproject.toml", "rb") as f:
+            data = tomllib.load(f)
+            v = data.get("project", {}).get("version", "").strip()
+            if v:
+                return "v" + v.lstrip("v")
+    except Exception:
+        pass
+    return "v1.0.4"
+
 def main():
-    tag_name = DEFAULT_TAG
+    tag_name = get_project_version()
     force_rebuild = False
     
     for arg in sys.argv[1:]:
@@ -170,7 +214,7 @@ def main():
 
     zip_path = "TapoC225_BabyMonitor_Windows.zip"
     
-    print(f"Iniciando pipeline de publicacion local para tag: {tag_name}")
+    print(f"Iniciando pipeline de publicacion local para version/tag: {tag_name}")
     
     # 1. Tests locales (offscreen)
     if not run_local_tests():
@@ -181,15 +225,7 @@ def main():
         return
         
     # 3. Token de GitHub
-    token = os.environ.get("GITHUB_TOKEN")
-    if not token and os.path.exists(".env"):
-        with open(".env", "r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("GITHUB_TOKEN="):
-                    token = line.split("=", 1)[1].strip().strip('"').strip("'")
-                    break
-                        
+    token = get_github_token()
     if not token:
         print("\n[!] Ingresa tu GitHub Personal Access Token (PAT) para subir la release directamente:")
         token = input("GITHUB_TOKEN: ").strip()
@@ -198,7 +234,14 @@ def main():
         print("[ERROR] No se proporciono token de GitHub. El archivo ZIP local esta listo en la raiz.")
         return
         
-    # 4. Subir Release
+    # 4. Asegurar tag en git
+    try:
+        subprocess.run(["git", "tag", "-a", tag_name, "-m", f"Release {tag_name}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["git", "push", "origin", tag_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+    # 5. Subir Release a GitHub
     upload_to_github_release(tag_name, zip_path, token)
 
 if __name__ == "__main__":

@@ -26,15 +26,36 @@ TAG_NAME = "v1.0.0"
 ZIP_PATH = "TapoC225_BabyMonitor_Windows.zip"
 
 def get_github_token() -> str:
+    # 1. Variable de entorno
     token = os.environ.get("GITHUB_TOKEN")
-    if not token and os.path.exists(".env"):
+    if token:
+        return token
+    # 2. Archivo .env
+    if os.path.exists(".env"):
         with open(".env", "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
                 line = line.strip()
                 if line.startswith("GITHUB_TOKEN="):
                     token = line.split("=", 1)[1].strip().strip('"').strip("'")
-                    break
-    return token or ""
+                    if token:
+                        return token
+    # 3. Windows / System Git Credential Manager
+    try:
+        res = subprocess.run(
+            ["git", "credential", "fill"],
+            input="protocol=https\nhost=github.com\n\n",
+            text=True,
+            capture_output=True,
+            timeout=5
+        )
+        if res.returncode == 0:
+            creds = dict(l.split("=", 1) for l in res.stdout.splitlines() if "=" in l)
+            pwd = creds.get("password", "")
+            if pwd:
+                return pwd
+    except Exception:
+        pass
+    return ""
 
 def run_local_tests() -> bool:
     print("\n" + "=" * 60)
