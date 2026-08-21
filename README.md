@@ -34,7 +34,7 @@
 * **Crib Region of Interest (ROI):** Click *"Definir Zona Cuna con Ratón"* to restrict movement and recognition alerts strictly inside the baby's bed.
 * **Clean Vision Overlay (`Visión Limpia`):** Mathematical telemetry (similarity, movement %, crib state) rendered outside the video frame so the camera image remains completely unobstructed.
 * **Smart Baby Cropping Tool:** Select facial angles, feet, or body positions and save them into the template gallery (`Álbum de Fotos Guardadas`).
-* **Negative False-Positive Veto Gallery (`Falsos Positivos Vetados`):** One-click cropping for pillows, blankets, or adult faces to permanently suppress false alerts via competitive scoring ($\Delta = \text{Score}_{pos} - 0.70 \times \text{Score}_{neg}$).
+* **Negative False-Positive Veto Gallery (`Falsos Positivos Vetados`):** One-click cropping for pillows, blankets, or adult faces to permanently suppress false alerts via competitive scoring (`Score = Score_pos - 0.70 × Score_neg`).
 * **Binary Fast Cache (`Optimizar Caché .pkl`):** Serializes all templates into memory for instant startup and zero inference lag.
 
 <p align="center">

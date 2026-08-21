@@ -122,7 +122,7 @@
 * **`Similitud Fotos Bebé` (Slider 10% a 90%):** Ajusta la tolerancia de coincidencia visual.
 * **`Recortar Foto del Bebé con Ratón`:** Haz clic y arrastra sobre la cara, cuerpo o pies del bebé en el video en vivo.
   * **`Guardar Bebé` (Botón Verde):** Agrega la foto al álbum positivo (`Álbum de Fotos Guardadas`).
-  * **`Vetar Falso Positivo` (Botón Rojo):** Guarda recortes de sábanas, almohadas o brazos de adultos en la galería negativa (`Falsos Positivos Vetados`) para bloquear detecciones erróneas mediante puntuación competitiva ($\Delta = \text{Score}_{pos} - 0.70 \times \text{Score}_{neg}$).
+  * **`Vetar Falso Positivo` (Botón Rojo):** Guarda recortes de sábanas, almohadas o brazos de adultos en la galería negativa (`Falsos Positivos Vetados`) para bloquear detecciones erróneas mediante puntuación competitiva (`Score = Score_pos - 0.70 × Score_neg`).
 * **`Optimizar Caché (.pkl)`:** Compila las fotos en memoria binaria para un inicio ultrarrápido a 30 FPS.
 
 ---
