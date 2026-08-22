@@ -33,9 +33,43 @@ class TestCompleteGUIInterface(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = app
+        cls.tmp_dir = tempfile.TemporaryDirectory()
+        cls.tmp_tmpl = os.path.join(cls.tmp_dir.name, "templates")
+        cls.tmp_neg = os.path.join(cls.tmp_dir.name, "negatives")
+        os.makedirs(cls.tmp_tmpl, exist_ok=True)
+        os.makedirs(cls.tmp_neg, exist_ok=True)
+
+        if os.path.exists("templates"):
+            for f in os.listdir("templates"):
+                if f.endswith(".jpg"):
+                    try:
+                        shutil.copy(os.path.join("templates", f), os.path.join(cls.tmp_tmpl, f))
+                    except Exception:
+                        pass
+
+        cls.window = PySideTapoApp(config_path=TEST_CONFIG_PATH)
+        if hasattr(cls.window, "video_stream"):
+            cls.window.video_stream.stop()
+        if hasattr(cls.window, "audio_monitor"):
+            cls.window.audio_monitor.stop()
+        cls.window.detector.templates.templates_dir = cls.tmp_tmpl
+        cls.window.detector.templates.negatives_dir = cls.tmp_neg
+        cls.window.detector.templates.load_target_templates()
+        cls.window.detector.templates.load_negative_templates()
+        cls.window.gallery_panel.update_album_ui()
+        cls.window.gallery_panel.update_negatives_ui()
+        cls.app.processEvents()
 
     @classmethod
     def tearDownClass(cls):
+        if hasattr(cls, "window") and cls.window is not None:
+            cls.window.close()
+            cls.app.processEvents()
+        if hasattr(cls, "tmp_dir"):
+            try:
+                cls.tmp_dir.cleanup()
+            except Exception:
+                pass
         if os.path.exists(TEST_CONFIG_PATH):
             try:
                 os.remove(TEST_CONFIG_PATH)
@@ -43,43 +77,10 @@ class TestCompleteGUIInterface(unittest.TestCase):
                 pass
 
     def setUp(self):
-        self.tmp_dir = tempfile.TemporaryDirectory()
-        self.tmp_tmpl = os.path.join(self.tmp_dir.name, "templates")
-        self.tmp_neg = os.path.join(self.tmp_dir.name, "negatives")
-        os.makedirs(self.tmp_tmpl, exist_ok=True)
-        os.makedirs(self.tmp_neg, exist_ok=True)
-
-        if os.path.exists("templates"):
-            for f in os.listdir("templates"):
-                if f.endswith(".jpg"):
-                    try:
-                        shutil.copy(os.path.join("templates", f), os.path.join(self.tmp_tmpl, f))
-                    except Exception:
-                        pass
-
-        self.window = PySideTapoApp(config_path=TEST_CONFIG_PATH)
-        self.window.detector.templates.templates_dir = self.tmp_tmpl
-        self.window.detector.templates.negatives_dir = self.tmp_neg
-        self.window.detector.templates.load_target_templates()
-        self.window.detector.templates.load_negative_templates()
-        self.window.gallery_panel.update_album_ui()
-        self.window.gallery_panel.update_negatives_ui()
         self.app.processEvents()
 
     def tearDown(self):
-        if hasattr(self, "window") and self.window is not None:
-            self.window.close()
-            self.app.processEvents()
-        if hasattr(self, "tmp_dir"):
-            try:
-                self.tmp_dir.cleanup()
-            except Exception:
-                pass
-        if os.path.exists(TEST_CONFIG_PATH):
-            try:
-                os.remove(TEST_CONFIG_PATH)
-            except Exception:
-                pass
+        self.app.processEvents()
 
     def test_01_window_components_exist(self):
         """Verifica que todos los componentes clave de la GUI estén presentes y conectados."""

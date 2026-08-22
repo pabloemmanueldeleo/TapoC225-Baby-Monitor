@@ -209,7 +209,13 @@ class BabyDetector:
 
             # 2. Inferencia Neuronal de Segmentación YOLOv8
             top_yolo_conf = 0.0
-            if self.yolo.enabled and (self.frame_count % 2 == 0 or motion_detected or self.frame_count <= 3):
+            should_run_yolo = self.yolo.enabled and (
+                motion_detected
+                or self._smooth_baby_box is None
+                or self.frame_count % 3 == 0
+                or self.frame_count <= 3
+            )
+            if should_run_yolo:
                 yolo_cands, all_persons = self.yolo.predict(roi_crop, conf_threshold=0.15)
                 self.last_yolo_boxes = all_persons
                 
@@ -272,12 +278,13 @@ class BabyDetector:
                 and bool(self.templates.target_templates)
                 and roi_crop.shape[0] > 30
                 and roi_crop.shape[1] > 30
-                and (self._smooth_baby_box is None or self.frame_count % 2 == 0 or self.frame_count <= 3)
+                and len(fresh_candidates) == 0  # Si YOLO ya detectó al bebé con éxito, evitamos escaneo exhaustivo innecesario
+                and (self._smooth_baby_box is None or motion_detected or self.frame_count % 4 == 0 or self.frame_count <= 3)
             )
 
             if should_run_templates:
                 rh, rw = roi_crop.shape[:2]
-                scale_f = 640.0 / float(max(rh, rw)) if max(rh, rw) > 640 else 1.0
+                scale_f = 380.0 / float(max(rh, rw)) if max(rh, rw) > 380 else 1.0
                 s_rw, s_rh = int(rw * scale_f), int(rh * scale_f)
                 scaled_search = cv2.resize(roi_crop, (s_rw, s_rh)) if scale_f != 1.0 else roi_crop
 
@@ -295,7 +302,7 @@ class BabyDetector:
                     hist_tmpl = item[2] if len(item) > 2 else None
                     try:
                         th, tw = t_img.shape[:2]
-                        for t_scale in (0.35, 0.48, 0.62, 0.78, 0.95, 1.15, 1.40, 1.65):
+                        for t_scale in (0.45, 0.65, 0.85, 1.10, 1.40):
                             scaled_tw, scaled_th = int(tw * t_scale), int(th * t_scale)
                             s_tw, s_th = int(scaled_tw * scale_f), int(scaled_th * scale_f)
 

@@ -1,12 +1,15 @@
 """
 Script Automatizado de Publicacion Local y Release en GitHub:
 1. Ejecuta la suite de pruebas unitarias en local (offscreen).
-2. Compila el ejecutable nativo (.exe) con PyInstaller y crea el ZIP.
-3. Sube la Release directamente a GitHub Releases mediante la API REST.
+2. Compila el ejecutable nativo (.exe) con PyInstaller.
+3. Realiza prueba End-to-End obligatoria (Smoke-Test) del .exe compilado.
+4. Genera el paquete ZIP ultra-comprimido.
+5. Sube la Release directamente a GitHub Releases mediante la API REST.
 """
 
 import os
 import sys
+import time
 import shutil
 import zipfile
 import subprocess
@@ -21,11 +24,11 @@ if hasattr(sys.stdout, "reconfigure"):
 
 REPO_OWNER = "pabloemmanueldeleo"
 REPO_NAME = "TapoC225-Baby-Monitor"
-DEFAULT_TAG = "v1.0.0"
+DEFAULT_TAG = "v1.0.4"
 
 def run_local_tests() -> bool:
     print("\n" + "=" * 60)
-    print(" [TESTS] 1. EJECUTANDO PRUEBAS EN SEGUNDO PLANO (OFFSCREEN)")
+    print(" [TESTS] 1. EJECUTANDO PRUEBAS UNITARIAS (OFFSCREEN)")
     print("=" * 60)
     env = os.environ.copy()
     env["QT_QPA_PLATFORM"] = "offscreen"
@@ -37,38 +40,89 @@ def run_local_tests() -> bool:
     print("[OK] Todas las pruebas unitarias pasaron con exito al 100%.")
     return True
 
+def verify_executable_e2e(exe_path: str) -> bool:
+    print("\n" + "=" * 60)
+    print(" [VERIFY] 3. VERIFICACION END-TO-END DEL .EXE COMPILADO")
+    print("=" * 60)
+    if not os.path.exists(exe_path):
+        print(f"[ERROR] No se encontro el ejecutable en '{exe_path}'.")
+        return False
+
+    exe_dir = os.path.dirname(exe_path)
+    crash_log = os.path.join(exe_dir, "crash_log.txt")
+    if os.path.exists(crash_log):
+        try:
+            os.remove(crash_log)
+        except Exception:
+            pass
+
+    print(f"[*] Probando ejecucion en vivo de '{exe_path}' (--smoke-test)...")
+    start_t = time.time()
+    try:
+        proc = subprocess.Popen(
+            [exe_path, "--smoke-test"],
+            cwd=exe_dir,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        returncode = proc.wait(timeout=15)
+        duration = time.time() - start_t
+        print(f"[*] Proceso finalizado en {duration:.2f}s con codigo de retorno: {returncode}")
+
+        if os.path.exists(crash_log):
+            with open(crash_log, "r", encoding="utf-8", errors="replace") as f:
+                log_content = f.read()
+            print(f"[ERROR] Se genero un crash_log.txt durante la ejecucion:\n{log_content}")
+            return False
+
+        if returncode != 0:
+            print(f"[ERROR] El ejecutable retorno codigo de error {returncode}.")
+            return False
+
+        print("[OK] El ejecutable (.exe) paso la prueba de apertura e inicializacion con exito.")
+        return True
+    except subprocess.TimeoutExpired:
+        print("[ERROR] El ejecutable se colgo durante la prueba de apertura (timeout 20s).")
+        return False
+    except Exception as e:
+        print(f"[ERROR] Error inesperado al verificar ejecutable: {e}")
+        return False
+
 def build_executable_and_zip(zip_path: str, force_rebuild: bool = False) -> bool:
     print("\n" + "=" * 60)
-    print(" [BUILD] 2. COMPILANDO EJECUTABLE Y CREANDO ARCHIVO ZIP")
+    print(" [BUILD] 2. COMPILANDO EJECUTABLE CON PYINSTALLER")
     print("=" * 60)
     
-    if os.path.exists(zip_path) and not force_rebuild:
-        size_mb = os.path.getsize(zip_path) / (1024 * 1024)
-        print(f"[OK] Archivo ZIP existente detectado: '{zip_path}' ({size_mb:.1f} MB). Usando paquete listo.")
-        return True
-
-    # 1. Asegurar exportacion de modelo ONNX
-    onnx_path = "yolov8n-seg.onnx"
-    if not os.path.exists(onnx_path):
-        print("[*] Exportando modelo YOLOv8n a ONNX...")
-        from ultralytics import YOLO
-        model = YOLO("yolov8n-seg.pt")
-        model.export(format="onnx", imgsz=640, simplify=True)
-    
-    # 2. Ejecutar PyInstaller
-    cmd_build = [sys.executable, "scripts/build_exe.py"]
-    res = subprocess.run(cmd_build)
-    if res.returncode != 0:
-        print("[ERROR] La compilacion de PyInstaller fallo.")
-        return False
-        
     dist_folder = os.path.join("dist", "TapoC225_BabyMonitor")
-    if not os.path.exists(dist_folder):
-        print(f"[ERROR] No se encontro la carpeta compilada '{dist_folder}'.")
-        return False
+    exe_path = os.path.join(dist_folder, "TapoC225_BabyMonitor.exe")
+
+    if not os.path.exists(exe_path) or force_rebuild:
+        # 1. Asegurar exportacion de modelo ONNX
+        onnx_path = "yolov8n-seg.onnx"
+        if not os.path.exists(onnx_path):
+            print("[*] Exportando modelo YOLOv8n a ONNX...")
+            from ultralytics import YOLO
+            model = YOLO("yolov8n-seg.pt")
+            model.export(format="onnx", imgsz=640, simplify=True)
         
-    # 3. Comprimir a ZIP con compresión máxima (ZIP_DEFLATED nivel 9)
-    print(f"[*] Comprimiendo '{dist_folder}' en '{zip_path}' con compresión máxima...")
+        # 2. Ejecutar PyInstaller
+        cmd_build = [sys.executable, "scripts/build_exe.py"]
+        res = subprocess.run(cmd_build)
+        if res.returncode != 0:
+            print("[ERROR] La compilacion de PyInstaller fallo.")
+            return False
+            
+    if not os.path.exists(dist_folder) or not os.path.exists(exe_path):
+        print(f"[ERROR] No se encontro la carpeta compilada o el .exe en '{dist_folder}'.")
+        return False
+
+    # 3. VERIFICACION OBLIGATORIA DEL .EXE ANTES DE ZIPEARY PUBLICAR
+    if not verify_executable_e2e(exe_path):
+        print("[ERROR] La prueba de ejecucion del .exe fallo. Se cancela la publicacion.")
+        return False
+
+    # 4. Comprimir a ZIP con compresión máxima (ZIP_DEFLATED nivel 9)
+    print(f"\n[*] Comprimiendo '{dist_folder}' en '{zip_path}' con compresión máxima...")
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
         for root, dirs, files in os.walk(dist_folder):
             for f in files:
@@ -78,11 +132,22 @@ def build_executable_and_zip(zip_path: str, force_rebuild: bool = False) -> bool
     
     size_mb = os.path.getsize(zip_path) / (1024 * 1024)
     print(f"[OK] Archivo ZIP ultra-comprimido generado exitosamente: {zip_path} ({size_mb:.1f} MB)")
+
+    # Sincronizar carpeta de prueba de Windows C:\TapoC225_BabyMonitor
+    user_test_dir = r"C:\TapoC225_BabyMonitor"
+    try:
+        if os.path.exists(user_test_dir):
+            shutil.rmtree(user_test_dir, ignore_errors=True)
+        shutil.copytree(dist_folder, user_test_dir)
+        print(f"[OK] Distribución actualizada en carpeta local: {user_test_dir}")
+    except Exception as e:
+        print(f"[WARN] No se pudo sincronizar con {user_test_dir}: {e}")
+
     return True
 
 def upload_to_github_release(tag_name: str, zip_path: str, token: str) -> bool:
     print("\n" + "=" * 60)
-    print(f" [RELEASE] 3. PUBLICANDO RELEASE '{tag_name}' DIRECTAMENTE EN GITHUB")
+    print(f" [RELEASE] 4. PUBLICANDO RELEASE '{tag_name}' DIRECTAMENTE EN GITHUB")
     print("=" * 60)
     
     headers = {
@@ -138,69 +203,50 @@ def upload_to_github_release(tag_name: str, zip_path: str, token: str) -> bool:
                 requests.delete(f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/assets/{asset_id}", headers=headers)
 
     # 3. Subir el binario ZIP como asset
-    upload_url = upload_url_template.split("{")[0] + f"?name={os.path.basename(zip_path)}"
-    upload_headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/zip"
-    }
-    
-    size_mb = os.path.getsize(zip_path) / (1024 * 1024)
-    print(f"[*] Subiendo '{zip_path}' ({size_mb:.1f} MB) a GitHub Releases (esto tomara unos segundos)...")
-    with open(zip_path, "rb") as f:
-        file_data = f.read()
+    if not upload_url_template:
+        print("[ERROR] No se obtuvo URL de subida de assets.")
+        return False
         
-    upload_res = requests.post(upload_url, data=file_data, headers=upload_headers)
-    if upload_res.status_code in (200, 201):
-        print(f"\n[EXITO TOTAL] Release publicada con binario descargable en:")
-        print(f"-> https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/tag/{tag_name}")
+    upload_url = upload_url_template.split("{")[0] + f"?name={os.path.basename(zip_path)}"
+    
+    headers["Content-Type"] = "application/zip"
+    file_size = os.path.getsize(zip_path)
+    print(f"[*] Subiendo '{zip_path}' ({file_size / (1024*1024):.1f} MB) a GitHub...")
+    
+    with open(zip_path, "rb") as f:
+        up_res = requests.post(upload_url, headers=headers, data=f)
+        
+    if up_res.status_code in (200, 201):
+        print(f"\n[OK] Release {tag_name} publicada exitosamente en:")
+        print(f"     https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/tag/{tag_name}")
         return True
     else:
-        print(f"[ERROR] Error al subir el binario: {upload_res.status_code} - {upload_res.text}")
+        print(f"[ERROR] Fallo al subir el binario: {up_res.status_code} - {up_res.text}")
         return False
 
 def get_github_token() -> str:
-    # 1. Variable de entorno
-    token = os.environ.get("GITHUB_TOKEN")
-    if token:
-        return token
-    # 2. Archivo .env
-    if os.path.exists(".env"):
-        with open(".env", "r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("GITHUB_TOKEN="):
-                    token = line.split("=", 1)[1].strip().strip('"').strip("'")
-                    if token:
-                        return token
-    # 3. Windows / System Git Credential Manager
-    try:
-        res = subprocess.run(
-            ["git", "credential", "fill"],
-            input="protocol=https\nhost=github.com\n\n",
-            text=True,
-            capture_output=True,
-            timeout=5
-        )
-        if res.returncode == 0:
-            creds = dict(l.split("=", 1) for l in res.stdout.splitlines() if "=" in l)
-            pwd = creds.get("password", "")
-            if pwd:
-                return pwd
-    except Exception:
-        pass
-    return ""
+    from dotenv import load_dotenv
+    load_dotenv()
+    token = os.getenv("GITHUB_TOKEN", "").strip()
+    if not token:
+        try:
+            gh_token_cmd = subprocess.run(["gh", "auth", "token"], capture_output=True, text=True)
+            if gh_token_cmd.returncode == 0:
+                token = gh_token_cmd.stdout.strip()
+        except Exception:
+            pass
+    return token
 
 def get_project_version() -> str:
     try:
-        import tomllib
-        with open("pyproject.toml", "rb") as f:
-            data = tomllib.load(f)
-            v = data.get("project", {}).get("version", "").strip()
-            if v:
-                return "v" + v.lstrip("v")
+        with open("pyproject.toml", "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip().startswith("version ="):
+                    v = line.split("=")[1].strip().strip('"').strip("'")
+                    return "v" + v.lstrip("v")
     except Exception:
         pass
-    return "v1.0.4"
+    return DEFAULT_TAG
 
 def main():
     tag_name = get_project_version()
@@ -220,7 +266,7 @@ def main():
     if not run_local_tests():
         return
         
-    # 2. Compilar
+    # 2. Compilar, Verificar E2E y Empaquetar
     if not build_executable_and_zip(zip_path, force_rebuild=force_rebuild):
         return
         
@@ -231,7 +277,7 @@ def main():
         token = input("GITHUB_TOKEN: ").strip()
         
     if not token:
-        print("[ERROR] No se proporciono token de GitHub. El archivo ZIP local esta listo en la raiz.")
+        print("[ERROR] No se proporciono token de GitHub. El archivo ZIP local esta listo y verificado.")
         return
         
     # 4. Asegurar tag en git

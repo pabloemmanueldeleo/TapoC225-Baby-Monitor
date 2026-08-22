@@ -62,10 +62,13 @@ class PySideTapoApp(QMainWindow):
         stream_pass = os.getenv("TAPO_STREAM_PASSWORD", "").strip()
         stream_quality = os.getenv("TAPO_STREAM_QUALITY", "stream1").strip()
 
-        if not tapo_ip or not stream_user:
+        is_smoke = ("--smoke-test" in sys.argv or "--test-launch" in sys.argv or os.environ.get("SMOKE_TEST") == "1")
+        if (not tapo_ip or not stream_user) and not is_smoke:
             tapo_ip, stream_user, stream_pass, stream_quality = self._prompt_camera_credentials_dialog(
                 default_ip=tapo_ip, default_user=stream_user, default_pass=stream_pass
             )
+        elif is_smoke and not tapo_ip:
+            tapo_ip = "127.0.0.1"
 
         rtsp_url = f"rtsp://{stream_user}:{stream_pass}@{tapo_ip}:554/{stream_quality}"
 
@@ -694,9 +697,10 @@ class PySideTapoApp(QMainWindow):
     # --- Hilo de Detección de Fondo ---
     def _detect_loop(self):
         while getattr(self, "_detect_running", True):
+            t_start = time.time()
             frame = self.video_stream.read()
             if frame is None:
-                time.sleep(0.01)
+                time.sleep(0.05)
                 continue
 
             motion_det, baby_det, annotated, info = self.detector.process_frame(frame)
@@ -727,7 +731,11 @@ class PySideTapoApp(QMainWindow):
                     audio_volume=vol,
                     is_crying=crying
                 )
-            time.sleep(0.015)
+
+            # Control adaptativo de tasa de inferencia (5 FPS = 200 ms) para liberar GIL y CPU a la interfaz
+            compute_elapsed = time.time() - t_start
+            sleep_time = max(0.04, 0.20 - compute_elapsed)
+            time.sleep(sleep_time)
 
     # --- Render Loop a 30 FPS ---
     def _render_loop(self):
@@ -881,6 +889,8 @@ class PySideTapoApp(QMainWindow):
     def _prompt_camera_credentials_dialog(self, default_ip="", default_user="", default_pass=""):
         dlg = QDialog(self)
         dlg.setWindowTitle("Configuración de Cámara Tapo C225")
+        dlg.setWindowFlags(dlg.windowFlags() | Qt.WindowStaysOnTopHint)
+        dlg.setModal(True)
         dlg.setStyleSheet("background-color: #0F172A; color: #F8FAFC;")
         d_layout = QVBoxLayout(dlg)
 
@@ -940,6 +950,11 @@ class PySideTapoApp(QMainWindow):
         self._detect_running = False
         if hasattr(self, "timer") and self.timer.isActive():
             self.timer.stop()
+        if hasattr(self, "tray_icon") and self.tray_icon is not None:
+            try:
+                self.tray_icon.hide()
+            except Exception:
+                pass
         if hasattr(self, "popup_alert") and self.popup_alert is not None:
             self.popup_alert.close()
         if hasattr(self, "video_stream"):

@@ -24,36 +24,67 @@ class YoloDetector:
     def __init__(self, enabled: bool = True):
         self.enabled = enabled and YOLO_AVAILABLE
         self.yolo_model = None
+        self._onnx_path = None
+        self._pt_seg_path = None
+        self._pt_path = None
         if self.enabled:
             import threading
             threading.Thread(target=self._init_model, daemon=True).start()
 
     def _init_model(self):
         try:
-            base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-            pt_seg_path = os.path.join(base_dir, "yolov8n-seg.pt")
-            onnx_path = os.path.join(base_dir, "yolov8n-seg.onnx")
+            try:
+                import torch
+                torch.set_num_threads(2)
+            except Exception:
+                pass
 
-            if os.path.exists(pt_seg_path):
-                logger.info("Cargando modelo neuronal YOLOv8n-seg (.pt PyTorch)...")
-                self.yolo_model = YOLO(pt_seg_path)
-                logger.info("Modelo YOLOv8n-seg (.pt) cargado exitosamente.")
-            elif os.path.exists(onnx_path):
+            base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+            app_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else base_dir
+            search_dirs = [base_dir, app_dir, os.getcwd()]
+
+            for d in search_dirs:
+                if not d:
+                    continue
+                o = os.path.join(d, "yolov8n-seg.onnx")
+                if not self._onnx_path and os.path.exists(o):
+                    self._onnx_path = o
+                p_seg = os.path.join(d, "yolov8n-seg.pt")
+                if not self._pt_seg_path and os.path.exists(p_seg):
+                    self._pt_seg_path = p_seg
+                p = os.path.join(d, "yolov8n.pt")
+                if not self._pt_path and os.path.exists(p):
+                    self._pt_path = p
+
+            if self._onnx_path:
                 try:
-                    logger.info("Cargando modelo neuronal YOLOv8n-seg ONNX...")
-                    self.yolo_model = YOLO(onnx_path, task="segment")
+                    logger.info(f"Cargando modelo neuronal YOLOv8n-seg ONNX ({self._onnx_path})...")
+                    self.yolo_model = YOLO(self._onnx_path, task="segment")
                     logger.info("Modelo YOLOv8n-seg ONNX cargado exitosamente.")
                 except Exception as ex_onnx:
-                    logger.warning(f"No se pudo cargar modelo ONNX ({ex_onnx}). Usando yolov8n-seg.pt...")
-                    self.yolo_model = YOLO("yolov8n-seg.pt")
+                    logger.warning(f"No se pudo cargar modelo ONNX ({ex_onnx}). Intentando con modelo .pt de respaldo...")
+                    if self._pt_seg_path:
+                        self.yolo_model = YOLO(self._pt_seg_path)
+                    else:
+                        self.yolo_model = YOLO("yolov8n-seg.pt")
+                    logger.info("Modelo YOLOv8n-seg (.pt) cargado exitosamente.")
+            elif self._pt_seg_path:
+                logger.info(f"Cargando modelo neuronal YOLOv8n-seg (.pt PyTorch) desde {self._pt_seg_path}...")
+                self.yolo_model = YOLO(self._pt_seg_path)
+                logger.info("Modelo YOLOv8n-seg (.pt) cargado exitosamente.")
+            elif self._pt_path:
+                logger.info(f"Cargando modelo neuronal YOLOv8n (.pt) desde {self._pt_path}...")
+                self.yolo_model = YOLO(self._pt_path)
+                logger.info("Modelo YOLOv8n (.pt) cargado exitosamente.")
             else:
-                logger.info("Cargando modelo neuronal YOLOv8n-seg (Ultralytics Segmentación)...")
+                logger.info("Cargando modelo neuronal YOLOv8n-seg por defecto...")
                 self.yolo_model = YOLO("yolov8n-seg.pt")
                 logger.info("Modelo YOLOv8n-seg cargado exitosamente.")
         except Exception as e:
             try:
-                logger.info(f"Fallback a YOLOv8n (.pt): {e}")
-                self.yolo_model = YOLO("yolov8n.pt")
+                fallback = self._pt_path or "yolov8n.pt"
+                logger.info(f"Fallback a YOLOv8n ({fallback}): {e}")
+                self.yolo_model = YOLO(fallback)
                 logger.info("Modelo YOLOv8n cargado exitosamente.")
             except Exception as ex:
                 logger.error(f"No se pudo cargar YOLOv8: {ex}. Se utilizará visión por computador básica.")
@@ -82,11 +113,13 @@ class YoloDetector:
         except Exception as e:
             logger.warning(f"Fallo en inferencia YOLO ({e}). Reintentando con modelo .pt de respaldo...")
             try:
-                self.yolo_model = YOLO("yolov8n-seg.pt")
+                fallback_seg = self._pt_seg_path or "yolov8n-seg.pt"
+                self.yolo_model = YOLO(fallback_seg)
                 results = self.yolo_model.predict(yolo_input, conf=conf_threshold, verbose=False)
             except Exception as ex:
                 try:
-                    self.yolo_model = YOLO("yolov8n.pt")
+                    fallback_det = self._pt_path or "yolov8n.pt"
+                    self.yolo_model = YOLO(fallback_det)
                     results = self.yolo_model.predict(yolo_input, conf=conf_threshold, verbose=False)
                 except Exception:
                     logger.error(f"Error definitivo en inferencia YOLO: {ex}")

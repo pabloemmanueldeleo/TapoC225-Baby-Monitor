@@ -147,9 +147,11 @@ class VideoCanvas(QLabel):
             self.vector_overlay = vector_overlay
         fh, fw, ch = cv_frame.shape
         bytes_per_line = ch * fw
-        rgb = cv2.cvtColor(cv_frame, cv2.COLOR_BGR2RGB)
         self.raw_image_size = (fw, fh)
-        self.current_qimage = QImage(rgb.data, fw, fh, bytes_per_line, QImage.Format_RGB888).copy()
+        
+        # Mapeo BGR nativo directo sin overhead de cv2.cvtColor en el hilo principal GUI
+        qimg = QImage(cv_frame.data, fw, fh, bytes_per_line, QImage.Format_BGR888)
+        self.current_pixmap = QPixmap.fromImage(qimg)
         
         lbl_w, lbl_h = self.width(), self.height()
         if lbl_w <= 0 or lbl_h <= 0 or fw <= 0 or fh <= 0:
@@ -226,7 +228,7 @@ class VideoCanvas(QLabel):
         painter.setRenderHint(QPainter.TextAntialiasing)
         painter.fillRect(self.rect(), QColor("#020617"))
 
-        if hasattr(self, "current_qimage") and self.current_qimage and not self.render_rect.isEmpty():
+        if hasattr(self, "current_pixmap") and self.current_pixmap and not self.render_rect.isEmpty():
             painter.save()
             if self.zoom_factor != 1.0 or self.pan_offset != QPoint(0, 0):
                 painter.translate(self.pan_offset)
@@ -236,8 +238,7 @@ class VideoCanvas(QLabel):
                 painter.translate(-center)
 
             # Capa 0: Video Crudo y Limpio en Alta Resolución
-            pixmap = QPixmap.fromImage(self.current_qimage)
-            painter.drawPixmap(self.render_rect, pixmap)
+            painter.drawPixmap(self.render_rect, self.current_pixmap)
 
             # Capa 1: Overlay Gráfico Vectorial Desacoplado
             rx = float(self.render_rect.x())

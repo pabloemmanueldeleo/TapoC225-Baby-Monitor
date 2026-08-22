@@ -17,6 +17,7 @@ dependencies = [
     "pyside6>=6.8.0",
     "matplotlib>=3.8.0",
     "onnxruntime>=1.16.0",
+    "onnx>=1.22.0",
 ]
 
 [project.optional-dependencies]
