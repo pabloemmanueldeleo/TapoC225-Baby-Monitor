@@ -1,6 +1,6 @@
 [project]
 name = "tapo-c225-monitor"
-version = "1.0.4"
+version = "1.0.5"
 description = "Monitor de Bebé inteligente para TP-Link Tapo C225 con PySide6 y visión IA"
 readme = "README.md"
 requires-python = ">=3.10"
