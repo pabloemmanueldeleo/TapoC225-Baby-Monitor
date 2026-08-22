@@ -5,6 +5,7 @@ config.json
 data/
 snapshots/
 captures/
+scratch/
 
 # Modelos pesados descargados dinámicamente por Ultralytics YOLO
 *.pt
@@ -17,6 +18,7 @@ yolov8n-seg.onnx
 __pycache__/
 *.py[cod]
 *$py.class
+*.pkl
 .venv/
 venv/
 ENV/
