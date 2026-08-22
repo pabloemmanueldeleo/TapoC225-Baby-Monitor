@@ -205,3 +205,24 @@ def create_and_upload_release(tag_name: str, zip_path: str, token: str) -> bool:
     else:
         print(f"[ERROR] Error subiendo el asset ({up_res.status_code}): {up_res.text}")
         return False
+
+if __name__ == "__main__":
+    tag = sys.argv[1] if len(sys.argv) > 1 else "v1.0.6"
+    zip_target = "TapoC225_BabyMonitor_Windows_x64.zip"
+    
+    token = get_github_token()
+    if not token:
+        print("[ERROR] No se pudo encontrar un token de GitHub válido en el entorno o git credentials.")
+        sys.exit(1)
+        
+    print(f"[*] Iniciando gestión de release para {tag}...")
+    delete_all_old_releases(token)
+    
+    if not create_clean_zip_package(zip_target):
+        print("[ERROR] Falló la creación del paquete zip.")
+        sys.exit(1)
+        
+    success = create_and_upload_release(tag, zip_target, token)
+    if not success:
+        sys.exit(1)
+
