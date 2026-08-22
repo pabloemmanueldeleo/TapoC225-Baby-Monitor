@@ -6,10 +6,15 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Run Test Suite (Windows)
     runs-on: windows-latest
+    permissions:
+      contents: read
     env:
       QT_QPA_PLATFORM: offscreen
 
