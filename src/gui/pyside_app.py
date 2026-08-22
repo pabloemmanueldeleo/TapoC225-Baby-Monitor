@@ -578,7 +578,7 @@ class PySideTapoApp(QMainWindow):
             try:
                 rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
                 ch, cw, _ = rgb.shape
-                qimg = QImage(rgb.data, cw, ch, 3 * cw, QImage.Format_RGB888)
+                qimg = QImage(rgb.data, cw, ch, 3 * cw, QImage.Format_RGB888).copy()
                 sp.lbl_crop_img.setPixmap(QPixmap.fromImage(qimg).scaled(180, 70, Qt.KeepAspectRatio, Qt.SmoothTransformation))
                 sp.lbl_crop_preview_title.setText(f"✂️ Recorte listo ({cw}x{ch} px): Elige 'Guardar Bebé' o 'Vetar'")
                 sp.lbl_crop_preview_title.setStyleSheet("font-size: 10px; color: #10B981; font-weight: bold;")
@@ -603,6 +603,9 @@ class PySideTapoApp(QMainWindow):
             if self.detector.save_target_template_from_crop(self._current_mouse_crop, coords):
                 self.gallery_panel.update_album_ui()
                 self.gallery_panel.update_candidates_ui()
+                # Cambiar a la pestaña Álbum & Vetos para ver inmediatamente la nueva foto agregada
+                if hasattr(self.settings_panel, "sub_tabs"):
+                    self.settings_panel.sub_tabs.setCurrentIndex(2)
                 self._set_status_msg("✨ ¡Nueva foto guardada exitosamente en el álbum del bebé!", "#38BDF8")
             self._discard_baby_crop()
 
@@ -613,6 +616,9 @@ class PySideTapoApp(QMainWindow):
             if self.detector.save_negative_template_from_crop(self._current_mouse_crop, coords):
                 self.gallery_panel.update_negatives_ui()
                 self.gallery_panel.update_candidates_ui()
+                # Cambiar a la pestaña Álbum & Vetos para ver inmediatamente el nuevo veto agregado
+                if hasattr(self.settings_panel, "sub_tabs"):
+                    self.settings_panel.sub_tabs.setCurrentIndex(2)
                 self._set_status_msg("🚫 ¡Falso positivo vetado añadido a la lista negra!", "#F87171")
             self._discard_baby_crop()
 

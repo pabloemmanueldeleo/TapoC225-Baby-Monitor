@@ -50,7 +50,7 @@ class TemplateManager:
     def save_target_template(self, crop: np.ndarray) -> bool:
         """
         Guarda una nueva foto/ángulo del bebé en la carpeta templates/ y actualiza la caché binaria.
-        Inserta en índice 0 (nuevo al frente) y previene duplicados visuales.
+        Inserta en índice 0 (nuevo al frente).
         """
         try:
             if crop is not None and crop.size > 0:
@@ -58,8 +58,8 @@ class TemplateManager:
                 
                 h, w = crop.shape[:2]
                 aspect = w / float(h)
-                if aspect > 3.5 or aspect < 0.28:
-                    logger.warning(f"Recorte con proporción extrema {aspect:.2f} (pliegue/tira). Omitiendo.")
+                if aspect > 4.5 or aspect < 0.22:
+                    logger.warning(f"Recorte con proporción extrema {aspect:.2f}. Omitiendo.")
                     return False
 
                 max_dim = max(h, w)
@@ -67,15 +67,15 @@ class TemplateManager:
                     scale = 240.0 / float(max_dim)
                     crop = cv2.resize(crop, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
 
-                # Evitar únicamente duplicados casi idénticos con fotos existentes en el álbum
+                # Evitar duplicados prácticamente idénticos (mismo frame o ruido mínimo)
                 for _, s_img, _ in self.target_templates:
-                    if self.are_crops_visually_similar(crop, s_img, threshold=0.92, max_diff=10.0):
-                        logger.info("Plantilla casi idéntica ya registrada en el álbum. Omitiendo duplicado.")
+                    if self.are_crops_visually_similar(crop, s_img, threshold=0.95, max_diff=8.0):
+                        logger.info("Plantilla idéntica ya registrada en el álbum.")
                         return True
 
-                filename = f"baby_angle_{int(time.time())}.jpg"
+                filename = f"baby_angle_{int(time.time() * 1000)}.jpg"
                 filepath = os.path.join(self.templates_dir, filename)
-                cv2.imwrite(filepath, crop, [cv2.IMWRITE_JPEG_QUALITY, 90])
+                cv2.imwrite(filepath, crop, [cv2.IMWRITE_JPEG_QUALITY, 92])
                 
                 hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
                 hist = cv2.calcHist([hsv], [0, 1], None, [18, 25], [0, 180, 0, 256])
@@ -117,7 +117,7 @@ class TemplateManager:
     def save_negative_template(self, crop: np.ndarray, roi_coords: Optional[Tuple[float, float, float, float]] = None) -> bool:
         """
         Guarda un recorte de falso positivo (madera, pared, almohada, sábana, adulto) en templates_negatives/ para ser vetado.
-        Inserta en índice 0 (nuevo al frente) y previene duplicados visuales.
+        Inserta en índice 0 (nuevo al frente).
         """
         try:
             if crop is not None and crop.size > 0:
@@ -129,14 +129,14 @@ class TemplateManager:
                     scale = 240.0 / float(max_dim)
                     crop = cv2.resize(crop, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
 
-                # Evitar únicamente duplicados casi idénticos con falsos positivos ya vetados
+                # Evitar duplicados idénticos en negativos
                 for item in self.negative_templates:
                     ex_img = item[1]
-                    if self.are_crops_visually_similar(crop, ex_img, threshold=0.92, max_diff=10.0):
-                        logger.info("Falso positivo casi idéntico ya vetado. Omitiendo duplicado.")
+                    if self.are_crops_visually_similar(crop, ex_img, threshold=0.95, max_diff=8.0):
+                        logger.info("Falso positivo idéntico ya vetado.")
                         return True
 
-                # Si se veta un recorte, limpiar cualquier plantilla positiva en conflicto visual
+                # Si se veta un recorte que antes estaba guardado en positivos, purgarlo
                 conflict_targets = [
                     t for t in self.target_templates
                     if self.are_crops_visually_similar(crop, t[1], threshold=0.90, max_diff=12.0)
@@ -144,9 +144,9 @@ class TemplateManager:
                 for ct in conflict_targets:
                     self.delete_target_template(ct[0])
 
-                filename = f"negative_ignore_{int(time.time())}.jpg"
+                filename = f"negative_ignore_{int(time.time() * 1000)}.jpg"
                 filepath = os.path.join(self.negatives_dir, filename)
-                cv2.imwrite(filepath, crop, [cv2.IMWRITE_JPEG_QUALITY, 90])
+                cv2.imwrite(filepath, crop, [cv2.IMWRITE_JPEG_QUALITY, 92])
                 
                 hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
                 hist = cv2.calcHist([hsv], [0, 1], None, [18, 25], [0, 180, 0, 256])
@@ -259,7 +259,7 @@ class TemplateManager:
         return False
 
     def load_target_templates(self):
-        """Carga fotos de plantillas de disco o caché binaria (.pkl), filtrando duplicados."""
+        """Carga fotos de plantillas de disco o caché binaria (.pkl)."""
         self.target_templates = []
         cache_path = os.path.join(self.templates_dir, "templates_cache.pkl")
 
@@ -274,7 +274,7 @@ class TemplateManager:
                         cached = pickle.load(f)
                     if len(cached) == len(files):
                         self.target_templates = cached
-                        logger.info(f"⚡ CACHÉ BINARIA CARGADA INSTANTÁNEAMENTE: {len(self.target_templates)} fotos de bebé")
+                        logger.info(f"⚡ CACHÉ BINARIA CARGADA: {len(self.target_templates)} fotos de bebé")
                         return
                 except Exception as e:
                     logger.warning(f"No se pudo leer caché binaria: {e}")
@@ -284,20 +284,11 @@ class TemplateManager:
                 filepath = os.path.join(self.templates_dir, file)
                 try:
                     img = cv2.imread(filepath)
-                    if img is not None:
+                    if img is not None and img.size > 0:
                         h, w = img.shape[:2]
                         if max(h, w) > 240:
                             scale = 240.0 / float(max(h, w))
                             img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
-                        
-                        # Omitir si ya cargamos una foto visualmente idéntica
-                        is_dup = any(self.are_crops_visually_similar(img, t[1], threshold=0.70, max_diff=26.0) for t in loaded)
-                        if is_dup:
-                            try:
-                                os.remove(filepath)
-                            except Exception:
-                                pass
-                            continue
 
                         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
                         hist = cv2.calcHist([hsv], [0, 1], None, [18, 25], [0, 180, 0, 256])
@@ -310,7 +301,7 @@ class TemplateManager:
             self._save_target_cache()
 
     def load_negative_templates(self):
-        """Carga falsos positivos vetados de disco o caché binaria (.pkl), filtrando duplicados."""
+        """Carga falsos positivos vetados de disco o caché binaria (.pkl)."""
         self.negative_templates = []
         neg_cache_path = os.path.join(self.negatives_dir, "negatives_cache.pkl")
 
@@ -335,20 +326,11 @@ class TemplateManager:
                 filepath = os.path.join(self.negatives_dir, file)
                 try:
                     img = cv2.imread(filepath)
-                    if img is not None:
+                    if img is not None and img.size > 0:
                         h, w = img.shape[:2]
                         if max(h, w) > 240:
                             scale = 240.0 / float(max(h, w))
                             img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
-
-                        # Omitir si ya cargamos un falso positivo visualmente idéntico
-                        is_dup = any(self.are_crops_visually_similar(img, n[1], threshold=0.70, max_diff=26.0) for n in loaded)
-                        if is_dup:
-                            try:
-                                os.remove(filepath)
-                            except Exception:
-                                pass
-                            continue
 
                         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
                         hist = cv2.calcHist([hsv], [0, 1], None, [18, 25], [0, 180, 0, 256])

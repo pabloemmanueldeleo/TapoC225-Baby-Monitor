@@ -117,7 +117,7 @@ class GalleryPanel(QObject):
                 try:
                     rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                     ch, cw, _ = rgb.shape
-                    qimg = QImage(rgb.data, cw, ch, 3 * cw, QImage.Format_RGB888)
+                    qimg = QImage(rgb.data, cw, ch, 3 * cw, QImage.Format_RGB888).copy()
                     lbl_pic.setPixmap(QPixmap.fromImage(qimg).scaled(58, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
                 except Exception:
                     pass
@@ -203,7 +203,7 @@ class GalleryPanel(QObject):
                 try:
                     rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                     ch, cw, _ = rgb.shape
-                    qimg = QImage(rgb.data, cw, ch, 3 * cw, QImage.Format_RGB888)
+                    qimg = QImage(rgb.data, cw, ch, 3 * cw, QImage.Format_RGB888).copy()
                     lbl_pic.setPixmap(QPixmap.fromImage(qimg).scaled(52, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation))
                 except Exception:
                     pass
@@ -270,7 +270,7 @@ class GalleryPanel(QObject):
             try:
                 rgb = cv2.cvtColor(crop_img, cv2.COLOR_BGR2RGB)
                 ch, cw, _ = rgb.shape
-                qimg = QImage(rgb.data, cw, ch, 3 * cw, QImage.Format_RGB888)
+                qimg = QImage(rgb.data, cw, ch, 3 * cw, QImage.Format_RGB888).copy()
                 lbl_pic.setPixmap(QPixmap.fromImage(qimg).scaled(78, 42, Qt.KeepAspectRatio, Qt.SmoothTransformation))
             except Exception:
                 pass

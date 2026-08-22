@@ -191,6 +191,11 @@ class SettingsPanel(QFrame):
         crop_box_layout.addLayout(crop_btn_layout)
         self.layout_baby.addWidget(self.crop_box)
 
+        btn_view_album = QPushButton("🖼️ Ver Álbum y Vetos Guardados ➔", self.grp_baby)
+        btn_view_album.setStyleSheet("background-color: #1E293B; color: #38BDF8; border: 1px dashed #0284C7; font-weight: bold; font-size: 10px; padding: 5px; border-radius: 5px;")
+        btn_view_album.clicked.connect(lambda: self.sub_tabs.setCurrentIndex(2))
+        self.layout_baby.addWidget(btn_view_album)
+
         layout_det.addWidget(self.grp_baby)
         layout_det.addStretch()
         self.sub_tabs.addTab(self.tab_detection, "🎯 Detección")
